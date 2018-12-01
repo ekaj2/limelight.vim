@@ -84,7 +84,7 @@ function! s:getpos()
   else
       let start = punc_found
       " need to increment to get past the punctuation point...
-      " this will have a bit of an issue with ... punctuation perhaps
+      " this will have a bit of an issue with "..." punctuation perhaps
       let start[1] += 2
   endif
 
