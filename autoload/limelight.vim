@@ -42,19 +42,66 @@ function! s:unsupported()
   endif
 endfunction
 
+function! s:GetVirtualCol(searchpos_result)
+      " the column number from searchpos doesn't work with tabs/linebreak
+      " property correctly...need to do this virtcol trick to get it right
+      let a:searchpos_result[1] = virtcol('.')
+      return a:searchpos_result
+endfunction
+
 function! s:getpos()
-  let bop = get(g:, 'limelight_bop', '^\s*$\n\zs')
-  let eop = get(g:, 'limelight_eop', '^\s*$')
-  let span = max([0, get(g:, 'limelight_paragraph_span', 0) - s:empty(getline('.'))])
+  " the beginning of a sentence is the beginning of the paragraph or
+  " the last period (to be tweaked later on)
+  let begin_line = '^.'
+
+  " A search pattern that finds the end of a sentence, with almost the same
+  " definition as the ")" command.
+  "
+  " from vim pattern.txt help page:
+  " [.!?][])"']*\($\|[ ]\)
+  "
+  " note that '' is treated as a single single quote when inside single quotes
+  let begin_punc = '[.!?][])"'']*\($\|[ ]\)'
+  "let begin_punc = '\.[^.]\|?\|\!'
+
+  " the end of a sentence is the end of a paragraph or a end punctuation mark
+  " the [^.] is to get all of the ellipsis (don't allow just one period
+  " followed by another)
+  "let eop = '.$\|\.[^.]\|?\|\!'
+  let eop = '[.!?][])"'']*\($\|[ ]\)'
+
+  " store old cursor position for restoration purposes
   let pos = getpos('.')
-  for i in range(0, span)
-    let start = searchpos(bop, i == 0 ? 'cbW' : 'bW')[0]
-  endfor
+
+  " fix the issue with actually selecting a period
+  let begin_found = s:GetVirtualCol(searchpos(begin_line, 'cbW'))
   call setpos('.', pos)
-  for _ in range(0, span)
-    let end = searchpos(eop, 'W')[0]
-  endfor
+  let punc_found = s:GetVirtualCol(searchpos(begin_punc, 'bW'))
+
+  " use punc_found unless it was on a previous line number
+  if punc_found[0] < begin_found[0]
+      let start = begin_found
+  else
+      let start = punc_found
+      " need to increment to get past the punctuation point...
+      " this will have a bit of an issue with ... punctuation perhaps
+      let start[1] += 2
+  endif
+
   call setpos('.', pos)
+
+  let end = searchpos(eop, 'cW')
+
+  " make sure that they are both on the same line
+  if end[0] <= start[0] + 1
+      " see above note
+      let end[1] = virtcol('.')
+      call setpos('.', pos)
+  else
+      call setpos('.', pos)
+      let end = [start[0], virtcol('.')]
+  endif
+
   return [start, end]
 endfunction
 
@@ -66,31 +113,36 @@ function! s:limelight()
   if !empty(get(w:, 'limelight_range', []))
     return
   endif
-  if !exists('w:limelight_prev')
-    let w:limelight_prev = [0, 0, 0, 0]
-  endif
+  "if !exists('w:limelight_prev')
+  "  let w:limelight_prev = [0, 0, 0, 0]
+  "endif
 
   let curr = [line('.'), line('$')]
-  if curr ==# w:limelight_prev[0 : 1]
-    return
-  endif
+  " Don't skip just because we are on the same line
+  "if curr ==# w:limelight_prev[0 : 1]
+  "  return
+  "endif
 
   let paragraph = s:getpos()
-  if paragraph ==# w:limelight_prev[2 : 3]
-    return
-  endif
+  "if paragraph ==# w:limelight_prev[2 : 3]
+  "  return
+  "endif
 
   call s:clear_hl()
   call call('s:hl', paragraph)
-  let w:limelight_prev = extend(curr, paragraph)
+  "let w:limelight_prev = extend(curr, paragraph)
+  "let w:limelight_prev = paragraph
 endfunction
 
 function! s:hl(startline, endline)
   let w:limelight_match_ids = get(w:, 'limelight_match_ids', [])
   let priority = get(g:, 'limelight_priority', 10)
-  call add(w:limelight_match_ids, matchadd('LimelightDim', '\%<'.a:startline.'l', priority))
-  if a:endline > 0
-    call add(w:limelight_match_ids, matchadd('LimelightDim', '\%>'.a:endline.'l', priority))
+  call add(w:limelight_match_ids, matchadd('LimelightDim', '\%<'.a:startline[0].'l', priority))
+  call add(w:limelight_match_ids, matchadd('LimelightDim', '\%'.a:startline[0].'l\%<'.a:startline[1].'v', priority))
+
+  if a:endline[0] > 0
+    call add(w:limelight_match_ids, matchadd('LimelightDim', '\%>'.a:endline[0].'l', priority))
+    call add(w:limelight_match_ids, matchadd('LimelightDim', '\%'.a:endline[0].'l\%>'.a:endline[1].'v', priority))
   endif
 endfunction
 
