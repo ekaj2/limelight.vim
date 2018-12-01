@@ -93,7 +93,7 @@ function! s:getpos()
   let end = searchpos(eop, 'cW')
 
   " make sure that they are both on the same line
-  if end[0] <= start[0] + 1
+  if end[0] <= start[0] + 1 || start[0] == 0
       " see above note
       let end[1] = virtcol('.')
       call setpos('.', pos)
