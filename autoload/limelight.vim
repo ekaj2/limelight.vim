@@ -105,7 +105,6 @@ function! s:getpos()
   endif
 
   call setpos('.', pos)
-
   let end = searchpos(eop, 'cW')
 
   " make sure that they are both on the same line
