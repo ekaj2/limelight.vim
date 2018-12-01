@@ -78,6 +78,22 @@ function! s:getpos()
   call setpos('.', pos)
   let punc_found = s:GetVirtualCol(searchpos(begin_punc, 'bW'))
 
+  " this is to get the "X. |" situation working correctly:
+  " when the cursor is just past a sentence with a period, the previous
+  " sentence should still be highlighted until I actually start typing the new
+  " sentence
+  let pos2 = [pos[0], pos[1], pos[2], pos[3]]
+  let pos2[2] -= 2
+  call setpos('.', pos2)
+  let punc_found_back = s:GetVirtualCol(searchpos(begin_punc, 'bW'))
+
+  " check if we are at the end of a line that is not blank
+  call setpos('.', pos)
+  let col = s:GetVirtualCol(searchpos('$', 'cW'))[1]
+  if punc_found[1] - punc_found_back[1] != 0 && pos[2] > 1 && col == 1
+      let punc_found = punc_found_back
+  endif
+
   " use punc_found unless it was on a previous line number
   if punc_found[0] < begin_found[0]
       let start = begin_found
